@@ -6,46 +6,60 @@ output: html_document
 ---
 
 ```{r}
+#loading data 
 loandata <- read.csv("Listings2013.csv")
-attach(loandata)
+#attach(loandata)
 str(loandata)
-ncol(loandata)
+#ncol(loandata)
 ```
 
 ```{r}
-attach(loandata)
+#change things to factor and remove nas
 loandata$loan_status <- as.factor(loandata$loan_status)
+loandata$listing_term <- as.factor(loandata$listing_term)
+loandata$prosper_score <- as.factor(loandata$prosper_score)
+loandata$listing_category_id <- as.factor(loandata$listing_category_id)
+loandata$income_range <- as.factor(loandata$income_range)
+loandata$lender_indicator <- as.factor(loandata$lender_indicator)
+
+#create dataframe with only non-na entries
+loandata_complete <- loandata[complete.cases(loandata),]
+
+```
+
+
+```{r}
+#simple linear regression model
 naive_model <- lm(borrower_rate ~ loan_status + prosper_rating + income_range + satisfactory_accounts, data = loandata )
 summary(naive_model)
 ```
 
+
 ```{r}
+#logistic regression 
 library(MASS)
 library(glmnet)
 set.seed(19875)
-n <- 1000  # Number of observations
-p <- 5000  # Number of predictors included in model
-real_p <- 15  # Number of true predictors
-x <- matrix(rnorm(n*p), nrow=n, ncol=p)
-y <- apply(x[,1:real_p], 1, sum) + rnorm(n)
 
-# Split data into train (2/3) and test (1/3) sets
-train_rows <- sample(1:n, .66*n)
-x.train <- x[train_rows, ]
-x.test <- x[-train_rows, ]
-
-y.train <- y[train_rows]
-y.test <- y[-train_rows]
-
-fit.lasso <- glmnet(x = x.train, y = y.train, family="gaussian", alpha=1)
-fit.ridge <- glmnet(x.train, y.train, family="gaussian", alpha=0)
-fit.elnet <- glmnet(x.train, y.train, family="gaussian", alpha=.5)
+#sample
+loansample <- loandata_complete[sample(nrow(loandata_complete), 5000),]
+attach(loansample)
 
 #run a logistic regression
-library(glmnet)
-loandata_nodescription <- loandata[,-4]
-yval <- loan_status == 2 | loan_status == 3
-fit = glmnet(principal_balance, yval, family = "binomial")
+loandata_nodescription <- loansample[,-4]
+default_status <- loan_status == 2 | loan_status == 3
+
+
+xfactors <- model.matrix(default_status ~ listing_term + prosper_rating + prosper_score + scorex + listing_category_id + income_range_description + occupation + borrower_state + lender_indicator)
+
+predictors <- as.matrix(data.frame(amount_funded, borrower_rate, listing_monthly_payment, stated_monthly_income, dti_wprosper_loan, months_employed, monthly_debt, current_delinquencies, delinquencies_last7_years, public_records_last10_years, public_records_last12_months, credit_lines_last7_years, inquiries_last6_months, amount_delinquent, current_credit_lines, open_credit_lines, bankcard_utilization, total_open_revolving_accounts,installment_balance, real_estate_balance, revolving_balance, real_estate_payment, revolving_available_percent, total_inquiries, total_trade_items, satisfactory_accounts, now_delinquent_derog, was_delinquent_derog, delinquencies_over90_days, is_homeowner, xfactors ))
+
+glmmod = glmnet(predictors, default_status, family = "binomial")
+glmmod
+#plot variable coefficients vs. shrinkage parameter lambda
+plot(glmmod, xvar="lambda")
+
+plot(glmmod, xvar= "dev", label = TRUE)
 #remove listing terms of 12
 
 #separate into listing terms of 36 and 60
