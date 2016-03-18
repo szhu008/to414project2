@@ -1,0 +1,202 @@
+---
+title: "Assignment 02"
+author: Stephen Zhu
+date: "Due Feb 3 10AM"
+output: html_document
+---
+
+> As usual, please start by changing the author information above. When you are done, please submit **both** the Rmd file and the html output on Canvas. Keep saving and knitting your Rmd file to make sure there are no last minute surprises
+
+#### Starting Off
+
+We will work with the package `nycflights13`. This package has data on all commercial flights departing the three NYC airports. Install the package in R-Console (it works better to not do it in the Rmd file). Now, lets load it in memory usinf the `library` function.
+```{r}
+#Insert code to load the nycflights13 package (not install - you should do that in R Console independently
+library('nycflights13')
+```
+
+Lets take a look inside the package. Use the `data` function to see what datasets are part of the package. You should be able to see that there are five datasets `airlines`, `airports`, `flights`, `planes` and `weather`.
+
+Lets take a peek inside the dataset called `flights` - this dataset will be the focus of this submission. Use the `head` function to see the first few rows of data for each of the datasets
+```{r}
+#Insert code to see first few rows of the flights dataset available in nycflights13 package
+head(flights)
+```
+
+Now, let's find out how many rows and columns does this dataset has. Number of rows: `r nrow(flights)`, Number of cols: `r ncol(flights)`.
+
+Okay, what if I want to filter this data to small portions. For example: I want to know how many flights where there by United Airlines (code: `UA`) on Jan 12th 2013?
+```{r}
+#Insert code to calculate how many flights were there by United on Jan 12, 2013
+nrow(flights[ (flights$year == 2013) & (flights$month == 1) & (flights$day == 12) & (flights$carrier == 'UA'),])
+```
+
+#### Focusing on Arrival Delay
+
+First thing we want to figure is: 1. What was the average arrival delay? and 2. What was the maximum arrival delay? 3. What was the median arrival delay **Note**: You will need to make sure that you take care of `NA` values for the code below. 
+```{r}
+#Insert code to calculate the average delay by a flight
+mean(flights$arr_delay, na.rm = TRUE)
+#Insert code to calculate the maximum delay by a flight
+max(flights$arr_delay, na.rm = TRUE)
+#Insert code to calculate the median delay by a flight
+median(flights$arr_delay, na.rm = TRUE)
+```
+
+Look at the median and the average arrival delay values. What does that tell you about the distribution of the arrival delay data? We can get further clarity on the distribution of the arrival delay data by drawing a histogram.
+```{r}
+#Insert code to draw a histogram of arrival delays
+hist(flights$arr_delay, main="Histogram of Arrival Delays", xlab = "Arrival Delay in Minutes")
+#Insert code to draw a histogram of arrival delays only for delays uptp 300 minutes
+hist(flights$arr_delay[flights$arr_delay <= 300], main="Histogram of Arr Delays up to 300 min.", xlab = "Arrival Delay in Minutes")
+```
+
+Now that you have both descriptive stats and some charts on arrival delay data, state your conclusions on how this data is distributed (write in the block provided below)
+```
+From the histograms, we see that the arrival delay data is distributed around mean: `r mean(flights$arr_delay, na.rm=TRUE)`, with variance: `r var(flights$arr_delay, na.rm=TRUE)`, and is skewed to the right. From the histogram we observe that a majority of the flight delay is centered around the mean, implying that most flights are rather punctual. 
+
+However, there are few flights that have very large delay which is not likely due to the error of arriving perfectly on time but could be due to weather or mechanical errors. These errors would contribute to the right skewness that is observed in the data.
+```
+
+#### What About the Airlines?
+
+Now lets see if all airlines are equally terrible as far as flight arrival delays are concerned. For this section you will have to make sure that airline data is coded as a `factor`.
+```{r}
+#1. Insert code to calculate average arrival delays by airline
+flights$carrier <- as.factor(flights$carrier)
+avgDelayByCarrier <- tapply(flights$arr_delay, flights$carrier, mean, na.rm=TRUE)
+avgDelayByCarrier
+#2. Insert code to draw a Bar Plot of Average Arrival Delays for all the Airlines
+barplot(avgDelayByCarrier, main = "Average Arrival Delay by Airline", xlab = "Airline", ylab = "Average Arrival Delay in Minutes", las=2)
+```
+
+Which airline has the highest average delay? Which airline has the smallest average delay? Are there airlines that actually have negative average delay? Answer below:
+```
+From the chart we see that Frontier Airlines (F9) has the highest delay at 21.92 minutes.
+Alaska Airlines (AS) has the smallest delay at -9.931 minutes. 
+Both Alaska Airlines (AS) and Hawaiian Airlines (HA) actually have a negative average delay.
+```
+Alright - now that we know something about which airlines are better/worse as far as arrival delay is concerned, we also would want to know whether airlines actually *make up time* when on air.
+```{r}
+
+#Insert code to calculate a new variable named airgain such that airgain = (arrival delay - departure delay)
+flights$airgain <- flights$arr_delay - flights$dep_delay
+#Insert code to explore airgain data and answer the question - do airlines actually gain any time when in air
+hist(flights$airgain, main="Histogram of airgains", xlab = "Airgains in Minutes")
+boxplot(flights$airgain, main="Histogram of airgains", ylab = "Airgains in Minutes")
+
+#remove outliers
+boxplot(flights$airgain, main="Histogram of airgains", ylab = "Airgains in Minutes", outline = FALSE)
+
+#Insert code to calculate average airgain for all the airlines
+mean(flights$airgain, na.rm = TRUE)
+#Insert code to chart average airgain for different airlines. We want to find out which airlines are good at "catching up" when in air and which airlines actually lose time further after taking off
+avgGainByCarrier <- tapply(flights$airgain, flights$carrier, mean, na.rm=TRUE)
+barplot(avgGainByCarrier, main = "Average Gain by Carrier", ylab = "Average Gain in Minutes", xlab = "Airline", las = 2)
+```
+
+#### Is There a Time Element?
+
+Write the R code that will help you answer the questions below. Feel free to add any needed charts to support your thought process. (For this section and the next, I am not providing any steps/directions - you are free to choose your course.)
+
+1. If you want avoid arrival delays, which month should you fly in? 
+```{r}
+#Change month to factor
+flights$month <- as.factor(flights$month)
+
+#plots boxplot for arrival delay in each month
+plot(flights$arr_delay ~ flights$month, xlab = "Months", ylab = "Arrival Delay in Minutes", main = "Arrival Delay by Month")
+
+#plots boxplot for arrival delay in each month
+#ignores outliers that obfuscates graph
+boxplot(flights$arr_delay ~ flights$month, outline=FALSE, xlab = "Months", ylab = "Arrival Delay in Minutes", main = "Arrival Delay by Month")
+
+#look at summary by month
+tapply(flights$arr_delay, flights$month, summary)
+
+#get average delay by month
+averageDelayByMonth = tapply(flights$arr_delay, flights$month, mean, na.rm = TRUE)
+
+#plot average arrival delay by month
+barplot(averageDelayByMonth, xlab = "Months", ylab = "Average Arrival Delay in Minutes", main = "Average Arrival Delay by Month")
+
+#find min average arrival delay by month
+which (averageDelayByMonth == min(averageDelayByMonth))
+```
+
+2. Which day (irrespective of month) is the best day to fly for minimizing arrival delay?
+```{r}
+#Change day to factor
+flights$day <- as.factor(flights$day)
+
+#plots for arrival delay in each day
+plot(flights$arr_delay ~ flights$day, xlab = "Day", ylab = "Arrival Delay in Minutes", main = "Arrival Delay by Day")
+
+#plots boxplot for arrival delay in each day
+#ignores outliers that obfuscates graph
+boxplot(flights$arr_delay ~ flights$day, outline=FALSE, xlab = "Day", ylab = "Arrival Delay in Minutes", main = "Arrival Delay by Day")
+
+#look at summary by day
+tapply(flights$arr_delay, flights$day, summary)
+
+#get average delay by day
+averageDelayByDay = tapply(flights$arr_delay, flights$day, mean, na.rm = TRUE)
+
+#plot average arrival delay by day
+barplot(averageDelayByDay, xlab = "Day", ylab = "Average Arrival Delay in Minutes", main = "Average Arrival Delay by Day")
+
+#find min average arrival delay by day
+which (averageDelayByDay == min(averageDelayByDay))
+```
+
+3. Assuming that you have a choice to fly in early morning (12am-8am), morning (8am-12noon), afternoon (12noon-4pm), evening (4pm-8pm), late evening (8pm-12am). Which time slot should you choose if you wish to reach your destination with minimum delay? 
+```{r}
+#Function to partition a given time
+partitionDay <- function(time){
+  if (is.na(time)){
+    return (NA);
+  }
+  if (time <= 800){
+    timeOfDay <- "early_morning"
+  } else if (time <= 1200){
+    timeOfDay <- "morning"
+  } else if (time <= 1600){
+    timeOfDay <- "afternoon"
+  } else if (time <= 2000){
+    timeOfDay <- "evening"
+  } else if (time <= 2400){
+    timeOfDay <- "late_evening"
+  } else {
+    timeOfDay <- NA
+  }
+  return (timeOfDay);
+}
+#create time of day column as factor
+flights$timeOfDay <- as.factor(sapply(flights$dep_time, partitionDay))
+
+#plots for arrival delay in each time of day
+plot(flights$arr_delay ~ flights$timeOfDay, xlab = "Time of Day", ylab = "Arrival Delay in Minutes", main = "Arrival Delay by Time of Day")
+
+#plots boxplot for arrival delay in each time of day
+#ignores outliers that obfuscates graph
+boxplot(flights$arr_delay ~ flights$timeOfDay, outline=FALSE, xlab = "Time of Day", ylab = "Arrival Delay in Minutes", main = "Arrival Delay by Time of Day")
+
+#look at summary by time of day
+tapply(flights$arr_delay, flights$timeOfDay, summary)
+
+#get average delay by time of day
+averageDelayByTOD = tapply(flights$arr_delay, flights$timeOfDay, mean, na.rm = TRUE)
+
+#plot average arrival delay by time of day
+barplot(averageDelayByTOD, xlab = "Time of Day", ylab = "Average Arrival Delay in Minutes", main = "Average Arrival Delay by Time of Day")
+
+#find min average arrival delay by time of day
+which (averageDelayByTOD == min(averageDelayByTOD))
+```
+
+#### Final Question
+What is the average speed of all flights leaving NYC on year 2013?
+```{r}
+flights$speed <- flights$distance/flights$air_time
+mean(flights$speed, na.rm=TRUE)
+```
