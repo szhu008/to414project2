@@ -1,0 +1,41 @@
+---
+title: "Nearest Neighbor"
+author: "Mitchell Feldman"
+date: "March 14, 2016"
+output: html_document
+---
+
+```{r}
+library("lmtest")
+library("car")
+library(MASS)
+#library("VIF")
+loandata <- read.csv("Listings2013 (1).csv")
+loandata$loan_status <- as.factor(loandata$loan_status)
+loandata$listing_term <- as.factor(loandata$listing_term)
+loandata$prosper_score <- as.factor(loandata$prosper_score)
+loandata$listing_category_id <- as.factor(loandata$listing_category_id)
+loandata$income_range <- as.factor(loandata$income_range)
+loandata$lender_indicator <- as.factor(loandata$lender_indicator)
+#create dataframe with only non-na entries
+loandata_complete <- loandata[complete.cases(loandata),]
+#loandata_complete <- na.omit(loandata)
+str(loandata)
+#linear regression with prosper on interest rate
+#used step-wise method, adding variables we deemed to be useful and removing ones with low significance or high vif/colinearity (removed those with vif > 2)
+
+loan_model <- lm(borrower_rate ~ prosper_score + income_range + amount_funded + income_verifiable + months_employed + monthly_debt + delinquencies_last7_years + public_records_last10_years + credit_lines_last7_years + total_inquiries + amount_delinquent + bankcard_utilization + is_homeowner, data=loandata_complete)
+
+vif(loan_model)
+
+#then, created a simpler model which removed variables we saw as possibly less useful, and compared with full model using anova. if p value is significant, we keep the fuller version. repeated until found best model.
+simpler_model <- lm(borrower_rate ~ prosper_score + income_range + amount_funded + income_verifiable + monthly_debt + delinquencies_last7_years + public_records_last10_years + credit_lines_last7_years+ total_inquiries + amount_delinquent + bankcard_utilization + is_homeowner, data=loandata_complete)
+step(simpler_model)
+anova(simpler_model, loan_model)
+
+#ended up removing months employed. 
+bptest(simpler_model)
+dwtest(simpler_model)
+outlierTest(simpler_model)
+```
+
