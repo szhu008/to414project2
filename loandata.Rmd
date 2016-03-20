@@ -13,6 +13,8 @@ str(loandata)
 #ncol(loandata)
 ```
 
+
+First we clean the data
 ```{r}
 #change things to factor and remove nas
 loandata$loan_status <- as.factor(loandata$loan_status)
@@ -22,9 +24,17 @@ loandata$listing_category_id <- as.factor(loandata$listing_category_id)
 loandata$income_range <- as.factor(loandata$income_range)
 loandata$lender_indicator <- as.factor(loandata$lender_indicator)
 
+#total_trade_items is identical to credit_line_last7_years. Remove credit_line_last7_years
+loandata$credit_lines_last7_years <- NULL
+
+#current_delinquencies is same as now_delinquent_derog
+loandata$now_delinquent_derog <- NULL
+
 #create dataframe with only non-na entries
 loandata_complete <- loandata[complete.cases(loandata),]
 
+#remove dti values greater than 1 (only ~1000 cases)
+loandata_complete <- loandata_complete[loandata_complete$dti_wprosper_loan <= 1,]
 ```
 
 
@@ -35,35 +45,115 @@ summary(naive_model)
 ```
 
 
+
 ```{r}
 #logistic regression 
+library(car)
 library(MASS)
 library(glmnet)
+library(aod)
 set.seed(19875)
 
 #sample
-loansample <- loandata_complete[sample(nrow(loandata_complete), 5000),]
-attach(loansample)
+ldata_nocurrent <- loandata_complete[loandata_complete$loan_status != 1, ]
+loansample <- ldata_nocurrent[sample(nrow(ldata_nocurrent), 15000),]
+#loansample <- loandata_complete[sample(nrow(loandata_complete), 5000),]
+attach(ldata_nocurrent)
 
 #run a logistic regression
-loandata_nodescription <- loansample[,-4]
+loandata_nodescription <- ldata_nocurrent[,-4]
+#loandata_nodescription <- loansample[,-4]
 default_status <- loan_status == 2 | loan_status == 3
 
 
-xfactors <- model.matrix(default_status ~ listing_term + prosper_rating + prosper_score + scorex + listing_category_id + income_range_description + occupation + borrower_state + lender_indicator)
+xfactors <- model.matrix(default_status ~ listing_term + prosper_rating + prosper_score + scorex + listing_category_id + income_range_description + occupation + lender_indicator)[,-1]
 
-predictors <- as.matrix(data.frame(amount_funded, borrower_rate, listing_monthly_payment, stated_monthly_income, dti_wprosper_loan, months_employed, monthly_debt, current_delinquencies, delinquencies_last7_years, public_records_last10_years, public_records_last12_months, credit_lines_last7_years, inquiries_last6_months, amount_delinquent, current_credit_lines, open_credit_lines, bankcard_utilization, total_open_revolving_accounts,installment_balance, real_estate_balance, revolving_balance, real_estate_payment, revolving_available_percent, total_inquiries, total_trade_items, satisfactory_accounts, now_delinquent_derog, was_delinquent_derog, delinquencies_over90_days, is_homeowner, xfactors ))
+predictors <- as.matrix(data.frame(amount_funded, borrower_rate, listing_monthly_payment, stated_monthly_income, dti_wprosper_loan, months_employed, monthly_debt, current_delinquencies, delinquencies_last7_years, public_records_last10_years, public_records_last12_months, inquiries_last6_months, amount_delinquent, current_credit_lines, open_credit_lines, bankcard_utilization, total_open_revolving_accounts,installment_balance, real_estate_balance, revolving_balance, real_estate_payment, revolving_available_percent, total_inquiries, total_trade_items, satisfactory_accounts, now_delinquent_derog, was_delinquent_derog, delinquencies_over90_days, is_homeowner, xfactors ))
 
 glmmod = glmnet(predictors, default_status, family = "binomial")
 glmmod
 #plot variable coefficients vs. shrinkage parameter lambda
+plot(glmmod)
 plot(glmmod, xvar="lambda")
 
 plot(glmmod, xvar= "dev", label = TRUE)
-#remove listing terms of 12
+
+#check the 40 df vals
+coef(glmmod, s = 7.155e-03)
 
 #separate into listing terms of 36 and 60
 
+cvfit <- cv.glmnet(predictors, default_status, family = "binomial", type.measure = "auc")
+plot(cvfit)
+
+#lowerband
+
+#lambda that gives the minimum mean cross-validated error
+cvfit$lambda.min
+
+#lambda that gives most regularized model that is one se from minimum
+cvfit$lambda.1se
+
+#coef(cvfit, s = "lambda.min")
+
+
+#from the cross validation chart, it seems that the lambda.1se value 
+coef(cvfit, s = "lambda.1se")
+
+#test different alpha values
+cv1 = cv.glmnet(predictors, default_status, family = "binomial", alpha = 1, type.measure = "auc")
+cv.5 = cv.glmnet(predictors, default_status, family = "binomial", alpha=.5, type.measure = "auc")
+cv0 = cv.glmnet(predictors, default_status, family = "binomial", alpha = 0, type.measure = "auc")
+cv1
+#take a look at coefficients of lambda.1se
+coef(cv1, s = "lambda.1se")
+plot(cv1)
+plot(cv.5)
+plot(cv0)
+
+#try variables using glm logistic regression
+allRelevantPred <- ldata_nocurrent[,!colnames(ldata_nocurrent) %in% c("loan_status", "loan_status_description", "first_recorded_credit_line", "borrower_city", "loan_origination_date", "now_delinquent_derog", "delinquencies_over30_days", "delinquencies_over60_days", "borrower_state", "borrower_rate")]
+glmlogit_all <- glm(default_status ~ ., data = allRelevantPred, family = "binomial")
+summary(glmlogit_all)
+
+glmlogistic <- glm(default_status ~ amount_funded + borrower_rate+ stated_monthly_income + current_delinquencies + public_records_last12_months + total_open_revolving_accounts + dti_wprosper_loan + total_trade_items + satisfactory_accounts + listing_term + prosper_rating + prosper_score + scorex + listing_category_id + income_range_description + lender_indicator, data=ldata_nocurrent, family = "binomial")
+summary(glmlogistic)
+vif(glmlogistic)
+#perform wald test
+wald.test(b = coef(glmlogistic), Sigma = vcov(glmlogistic), Terms = 9:14 )
+detach(ldata_nocurrent)
+```
+
+```{r}
+#linear regression
+
 
 ```
+
+```{r}
+#survival model
+
+#treat all non-default as right-censored data
+
+
+survY <- as.matrix(data.frame(number_of_days, default_status))
+colnames(survY) <- c("time", "status")
+cv.survmod <- cv.glmnet(predictors, survY, family = "cox")
+cv.survmod
+
+#take a look at top 10 variables
+coef(cv.survmod, s = 2.099e-02)
+coef(cv.survmod, s = "lambda.1se")
+
+
+
+```
+
+Logistic using linear params
+```{r}
+linParamLogit <- glm(default_status ~ real_estate_balance + current_delinquencies + bankcard_utilization + delinquencies_over30_days + total_inquiries + monthly_debt + listing_monthly_payment + income_range + scorex, data = ldata_nocurrent, family = "binomial")
+summary(linParamLogit)
+vif(linParamLogit)
+```
+
 
